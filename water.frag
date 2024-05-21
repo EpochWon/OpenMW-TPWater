@@ -32,8 +32,15 @@ const float SHORE_SIZE = 25.0; // size of depth based shore effect
 
 const float SUN_SPEC_FADING_THRESHOLD = 0.35; // visibility at which sun specularity starts to fade
 
+// enable water fogging
 #define WATER_FOG 1
+
+// enable reflections
 #define REFLECTION 1
+
+// whether or not to disable fake specular highlights when in an interior
+#define DISABLE_SPEC_INTERIOR 1
+
 
 #if WATER_FOG
 const float FADE_DIST = -3; // mip bias for water fade
@@ -71,6 +78,8 @@ uniform float rainIntensity;
 uniform bool enableRainRipples;
 
 uniform vec2 screenRes;
+
+uniform mat4 osg_ViewMatrixInverse;
 
 #define PER_PIXEL_LIGHTING 0
 
@@ -155,6 +164,13 @@ void main(void)
     vec4 layer2 = (tex5 + tex7) / 2.0;
 
     // specular highlights
+
+    // Extremely silly hack to determine whether we're indoors or not - from Zesterer
+	vec3 sunPos = lcalcPosition(0);
+	vec3 sunDir = normalize(sunPos);
+	vec3 sunWDir = (osg_ViewMatrixInverse * vec4(sunDir, 0.0)).xyz;
+	float isInterior = step(0.0, sunWDir.y);
+
     vec4 spec0 = texture2D(normalMap, uvPanner(UV, PAN_SPEED_X, PAN_SPEED_Y, waterTimer)) + vec4(rippleAdd, 1.0);
     vec4 spec1 = textureLod(normalMap, uvDistort(uvPanner(UV + 0.634, 0.0, -0.00625, waterTimer), spec0.rgb, SPECULAR_DISTORTION_SCALE), mipmapLevel + 0) + vec4(rippleAdd, 1.0);
 
@@ -166,6 +182,10 @@ void main(void)
         specular = 0.0;
     vec4 sunSpec = lcalcSpecular(0);
     specular *= SPECULAR_INTENSITY * min(1.0, sunSpec.a / SUN_SPEC_FADING_THRESHOLD);
+#if DISABLE_SPEC_INTERIOR
+    if (isInterior == 1.0)
+        specular = 0.0;
+#endif
 
     // combine surface
     float base = ((layer1.b + layer2.b) / 2.0);
