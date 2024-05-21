@@ -31,6 +31,12 @@ const float SHORE_SIZE = 10.0;
 
 const float SUN_SPEC_FADING_THRESHOLD = 0.35;       // visibility at which sun specularity starts to fade
 
+#define WaterFog 1
+
+#if WaterFog
+const float FADE_DIST = -1; // mip bias for water fade
+#endif
+
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
 
 vec2 uvPanner(vec2 uv, float xSpeed, float ySpeed, float time) {
@@ -40,16 +46,6 @@ vec2 uvPanner(vec2 uv, float xSpeed, float ySpeed, float time) {
 vec2 uvDistort(vec2 uv, vec3 distortionTexture, vec2 distortionVector) {
     vec2 distortion = (distortionTexture.xy - 1.0 / 2.0) * distortionVector;
     return uv + distortion;
-}
-
-float mip_map_level(in vec2 texture_coordinate)
-{
-    // The OpenGL Graphics System: A Specification 4.2
-    //  - chapter 3.9.11, equation 3.21
-    vec2  dx_vtc        = dFdx(texture_coordinate);
-    vec2  dy_vtc        = dFdy(texture_coordinate);
-    float delta_max_sqr = max(dot(dx_vtc, dx_vtc), dot(dy_vtc, dy_vtc));
-    return 0.5 * log2(delta_max_sqr);
 }
 
 uniform sampler2D rippleMap;
@@ -83,13 +79,21 @@ uniform vec2 screenRes;
 #include "lib/water/rain_ripples.glsl"
 #include "lib/view/depth.glsl"
 
+float mip_map_level(in vec2 texture_coordinate)
+{
+    // The OpenGL Graphics System: A Specification 4.2
+    //  - chapter 3.9.11, equation 3.21
+    vec2  dx_vtc        = dFdx(texture_coordinate);
+    vec2  dy_vtc        = dFdy(texture_coordinate);
+    float delta_max_sqr = max(dot(dx_vtc, dx_vtc), dot(dy_vtc, dy_vtc));
+    //return 0.5 * log2(delta_max_sqr * (screenRes.y / 480));
+    return 0.5 * log2(delta_max_sqr);
+}
+
 void main(void)
 {
     vec2 UV = worldPos.xy / TILE_SIZE;
-
-
     float shadow = unshadowedLightRatio(linearDepth);
-
     vec2 screenCoords = gl_FragCoord.xy / screenRes;
 
     float mipmapLevel = 0.0;
@@ -132,18 +136,18 @@ void main(void)
 
     // water surface
     vec4 tex0 = texture2D(normalMap, uvPanner(UV, PAN_SPEED_X, PAN_SPEED_Y, waterTimer)) + vec4(rippleAdd, 1.0);
-    vec4 tex1 = textureLod(normalMap, uvDistort(uvPanner(UV + 0.65, 0.0, -0.00625, waterTimer), tex0.rgb, DISTORTION_SCALE), mipmapLevel + 0) + vec4(rippleAdd, 1.0);
+    vec4 tex1 = textureLod(normalMap, uvDistort(uvPanner(UV + 0.65, 0.0, -0.00625, waterTimer), tex0.rgb, DISTORTION_SCALE + rainIntensity / 25), mipmapLevel + 0) + vec4(rippleAdd, 1.0);
 
     vec4 tex2 = texture2D(normalMap, uvPanner(UV, PAN_SPEED_X, PAN_SPEED_Y * -1.0, waterTimer)) + vec4(rippleAdd, 1.0);
-    vec4 tex3 = textureLod(normalMap, uvDistort(uvPanner(UV + 0.2, 0.0, 0.00625, waterTimer), tex2.rgb, DISTORTION_SCALE), mipmapLevel + 0) + vec4(rippleAdd, 1.0);
+    vec4 tex3 = textureLod(normalMap, uvDistort(uvPanner(UV + 0.2, 0.0, 0.00625, waterTimer), tex2.rgb, DISTORTION_SCALE + rainIntensity / 25), mipmapLevel + 0) + vec4(rippleAdd, 1.0);
 
     vec4 layer1 = (tex1 + tex3) / 2.0;
 
     vec4 tex4 = texture2D(normalMap, uvPanner(UV, PAN_SPEED_X, PAN_SPEED_Y, waterTimer)) + vec4(rippleAdd, 1.0);
-    vec4 tex5 = textureLod(normalMap, uvDistort(uvPanner(UV + 0.65, 0.0, -0.00625, waterTimer), tex4.rgb, DISTORTION_SCALE), mipmapLevel + 0) + vec4(rippleAdd, 1.0);
+    vec4 tex5 = textureLod(normalMap, uvDistort(uvPanner(UV + 0.65, 0.0, -0.00625, waterTimer), tex4.rgb, DISTORTION_SCALE + rainIntensity / 25), mipmapLevel + 0) + vec4(rippleAdd, 1.0);
 
     vec4 tex6 = texture2D(normalMap, uvPanner(UV, PAN_SPEED_X, PAN_SPEED_Y * -1.0, waterTimer)) + vec4(rippleAdd, 1.0);
-    vec4 tex7 = textureLod(normalMap, uvDistort(uvPanner(UV + 0.2, 0.0, 0.00625, waterTimer), tex6.rgb, DISTORTION_SCALE), mipmapLevel + 0) + vec4(rippleAdd, 1.0);
+    vec4 tex7 = textureLod(normalMap, uvDistort(uvPanner(UV + 0.2, 0.0, 0.00625, waterTimer), tex6.rgb, DISTORTION_SCALE + rainIntensity / 25), mipmapLevel + 0) + vec4(rippleAdd, 1.0);
 
     vec4 layer2 = (tex5 + tex7) / 2.0;
 
@@ -161,9 +165,9 @@ void main(void)
     specular *= SPECULAR_INTENSITY * min(1.0, sunSpec.a / SUN_SPEC_FADING_THRESHOLD);
 
     // combine surface
-    float base = (layer1.b + layer2.b) / 2.0;
+    float base = ((layer1.b + layer2.b) / 2.0);
     base -= max(rippleAdd.r, rippleAdd.g);
-    //base -= pow(fresnel, FADE_POW);
+    base -= pow(fresnel, FADE_POW);
     base -= clamp(1.0 - waterDepthDistorted / 25.0, 0.0, 1.0);
     base = smoothstep(0.75, 0.75, base);
     base *=  base;
@@ -177,6 +181,9 @@ void main(void)
     vec3 refracted = sampleRefractionMap(uvDistort(screenCoords - screenCoordsOffset, (refractionTex0.rgb + refractionTex1.rgb) / 2.0, UNDERWATER_DISTORTION_SCALE)).rgb;
     vec3 refraction = mix(unRefracted, refracted, clamp(min(waterDepthDistorted / 10.0, 1.0 - distToCenter), 0.0, 1.0));
     refraction *= UNDERWATER_TINT;
+#if WaterFog
+    refraction = mix(refraction, vec3(0.0), clamp(mipmapLevel + FADE_DIST, 0.0, 1.0));
+#endif
     //refraction += clamp(1.0 - waterDepthDistorted, 0.0, 1.0);
 
     // reflection
@@ -185,15 +192,15 @@ void main(void)
 
     gl_FragData[0].rgb = mix((vec3(base) * refraction + specular), reflection, fresnel);
     //gl_FragData[0].rgb = mix(refraction, vec3(base.b), base.a);
-    gl_FragData[0].rgb = vec3(log2(max(screenRes.x, screenRes.y))) * 0.5 + 0.5;
+    //gl_FragData[0].rgb = vec3(fract(mipmapLevel)) * 0.5 + 0.5;
     gl_FragData[0].a = 1.0;
 
 
-//#if @radialFog
-    //float radialDepth = distance(position.xyz, cameraPos);
-//#else
+#if @radialFog
+    float radialDepth = distance(position.xyz, cameraPos);
+#else
     float radialDepth = 0.0;
-//#endif
+#endif
 
     gl_FragData[0] = applyFogAtDist(gl_FragData[0], radialDepth, linearDepth, far);
 
