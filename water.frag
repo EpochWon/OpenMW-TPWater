@@ -8,8 +8,6 @@
     #extension GL_EXT_gpu_shader4: require
 #endif
 
-#extension GL_ARB_texture_query_lod : enable
-
 #include "lib/core/fragment.h.glsl"
 
 // tweakables -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -42,6 +40,16 @@ vec2 uvPanner(vec2 uv, float xSpeed, float ySpeed, float time) {
 vec2 uvDistort(vec2 uv, vec3 distortionTexture, vec2 distortionVector) {
     vec2 distortion = (distortionTexture.xy - 1.0 / 2.0) * distortionVector;
     return uv + distortion;
+}
+
+float mip_map_level(in vec2 texture_coordinate)
+{
+    // The OpenGL Graphics System: A Specification 4.2
+    //  - chapter 3.9.11, equation 3.21
+    vec2  dx_vtc        = dFdx(texture_coordinate);
+    vec2  dy_vtc        = dFdy(texture_coordinate);
+    float delta_max_sqr = max(dot(dx_vtc, dx_vtc), dot(dy_vtc, dy_vtc));
+    return 0.5 * log2(delta_max_sqr);
 }
 
 uniform sampler2D rippleMap;
@@ -79,14 +87,13 @@ void main(void)
 {
     vec2 UV = worldPos.xy / TILE_SIZE;
 
+
     float shadow = unshadowedLightRatio(linearDepth);
 
     vec2 screenCoords = gl_FragCoord.xy / screenRes;
 
-    float mipmapLevel = 0;
-#ifdef GL_ARB_texture_query_lod
-    mipmapLevel = textureQueryLOD(normalMap, UV).x;
-#endif
+    float mipmapLevel = 0.0;
+    mipmapLevel = mip_map_level(worldPos.xy);
 
     #define waterTimer osg_SimulationTime
 
@@ -166,7 +173,9 @@ void main(void)
     vec4 refractionTex0 = texture2D(normalMap, uvPanner(UV, PAN_SPEED_X / 2.0, PAN_SPEED_Y / 2.0, waterTimer)) + vec4(rippleAdd, 1.0);
     vec4 refractionTex1 = texture2D(normalMap, uvPanner(UV, PAN_SPEED_X / 2.0, (PAN_SPEED_Y * -1) / 2.0, waterTimer)) + vec4(rippleAdd, 1.0);
 
-    vec3 refraction = sampleRefractionMap(uvDistort(screenCoords - screenCoordsOffset, (refractionTex0.rgb + refractionTex1.rgb) / 2.0, UNDERWATER_DISTORTION_SCALE)).rgb;
+    vec3 unRefracted = sampleRefractionMap(screenCoords - screenCoordsOffset).rgb;
+    vec3 refracted = sampleRefractionMap(uvDistort(screenCoords - screenCoordsOffset, (refractionTex0.rgb + refractionTex1.rgb) / 2.0, UNDERWATER_DISTORTION_SCALE)).rgb;
+    vec3 refraction = mix(unRefracted, refracted, clamp(min(waterDepthDistorted / 10.0, 1.0 - distToCenter), 0.0, 1.0));
     refraction *= UNDERWATER_TINT;
     //refraction += clamp(1.0 - waterDepthDistorted, 0.0, 1.0);
 
@@ -176,15 +185,15 @@ void main(void)
 
     gl_FragData[0].rgb = mix((vec3(base) * refraction + specular), reflection, fresnel);
     //gl_FragData[0].rgb = mix(refraction, vec3(base.b), base.a);
-    //gl_FragData[0].rgb = vec3(base);
+    gl_FragData[0].rgb = vec3(log2(max(screenRes.x, screenRes.y))) * 0.5 + 0.5;
     gl_FragData[0].a = 1.0;
 
 
-#if @radialFog
-    float radialDepth = distance(position.xyz, cameraPos);
-#else
+//#if @radialFog
+    //float radialDepth = distance(position.xyz, cameraPos);
+//#else
     float radialDepth = 0.0;
-#endif
+//#endif
 
     gl_FragData[0] = applyFogAtDist(gl_FragData[0], radialDepth, linearDepth, far);
 
