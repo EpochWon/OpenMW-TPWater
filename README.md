@@ -20,3 +20,6 @@ All preview images use my BloomKawase post process shader available here: https:
 ![screenshot071](https://github.com/EpochWon/OpenMW-TPWater/assets/10932207/951c9995-1aa2-453c-a949-0400ad8125dc)
 ![screenshot072](https://github.com/EpochWon/OpenMW-TPWater/assets/10932207/41638b74-aee6-4299-b574-d0aa3fd0f449)
 ![screenshot074](https://github.com/EpochWon/OpenMW-TPWater/assets/10932207/c9dc4ff6-1b09-4cd3-a6e9-86d494c6e18f)
+
+# Some Notes
+This is not completely accurate to TP since TP uses custom authored mip maps to make the water fade out look nicer, along with using channel packed alpha, which I can't do without changing the texture sampler in the engine code. I also took some liberties with adding reflections and the way fade out is handled, because relying entirely on mips doesn't look very good for the large bodies of water in Morrowind. 
