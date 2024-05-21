@@ -27,13 +27,14 @@ const vec3 UNDERWATER_TINT = vec3(0.9);
 
 const float FADE_POW = 0.8;
 
-const float SHORE_SIZE = 10.0;
+const float SHORE_SIZE = 25.0; // size of depth based shore effect
 
-const float SUN_SPEC_FADING_THRESHOLD = 0.35;       // visibility at which sun specularity starts to fade
+const float SUN_SPEC_FADING_THRESHOLD = 0.35; // visibility at which sun specularity starts to fade
 
-#define WaterFog 1
+#define WATER_FOG 1
+#define REFLECTION 0
 
-#if WaterFog
+#if WATER_FOG
 const float FADE_DIST = -1; // mip bias for water fade
 #endif
 
@@ -168,7 +169,7 @@ void main(void)
     float base = ((layer1.b + layer2.b) / 2.0);
     base -= max(rippleAdd.r, rippleAdd.g);
     base -= pow(fresnel, FADE_POW);
-    base -= clamp(1.0 - waterDepthDistorted / 25.0, 0.0, 1.0);
+    base -= clamp(1.0 - waterDepthDistorted / SHORE_SIZE, 0.0, 1.0);
     base = smoothstep(0.75, 0.75, base);
     base *=  base;
     base = (base + BRIGHTNESS) * 0.5;
@@ -181,7 +182,7 @@ void main(void)
     vec3 refracted = sampleRefractionMap(uvDistort(screenCoords - screenCoordsOffset, (refractionTex0.rgb + refractionTex1.rgb) / 2.0, UNDERWATER_DISTORTION_SCALE)).rgb;
     vec3 refraction = mix(unRefracted, refracted, clamp(min(waterDepthDistorted / 10.0, 1.0 - distToCenter), 0.0, 1.0));
     refraction *= UNDERWATER_TINT;
-#if WaterFog
+#if WATER_FOG
     refraction = mix(refraction, vec3(0.0), clamp(mipmapLevel + FADE_DIST, 0.0, 1.0));
 #endif
     //refraction += clamp(1.0 - waterDepthDistorted, 0.0, 1.0);
@@ -190,7 +191,11 @@ void main(void)
     vec3 reflection = sampleReflectionMap(uvDistort(screenCoords + screenCoordsOffset, (refractionTex0.rgb + refractionTex1.rgb) / 2.0, UNDERWATER_DISTORTION_SCALE)).rgb;
     reflection *= clamp(distToCenter, 0.0, 1.0);
 
+#if REFLECTION
     gl_FragData[0].rgb = mix((vec3(base) * refraction + specular), reflection, fresnel);
+#else
+    gl_FragData[0].rgb = vec3(base) * refraction + specular;
+#endif
     //gl_FragData[0].rgb = mix(refraction, vec3(base.b), base.a);
     //gl_FragData[0].rgb = vec3(fract(mipmapLevel)) * 0.5 + 0.5;
     gl_FragData[0].a = 1.0;
