@@ -9,6 +9,8 @@ Place ``water_nm.png`` into ``OpenMW\resources\vfs\textures\omw``, make a backup
 Place ``water.frag`` into ``OpenMW\resources\shaders\compatibility``, make a backup of the original file.
 
 In-game, in the Options -> Video -> Water tab, enable ``Water Shader``, ``Refraction``, ``Sunlight Scattering``, ``Wobbly Shores``
+![image](https://github.com/EpochWon/OpenMW-TPWater/assets/10932207/0d709c29-ebcf-4624-9865-211f0e3f9635)
+
 
 You can customize some of the shader settings by editing ``water.frag``, tweakables are at the top of the file.
 
@@ -23,3 +25,5 @@ All preview images use my BloomKawase post process shader available here: https:
 
 # Some Notes
 This is not completely accurate to TP since TP uses custom authored mip maps to make the water fade out look nicer, along with using channel packed alpha, which I can't do without changing the texture sampler in the engine code. I also took some liberties with adding reflections and the way fade out is handled, because relying entirely on mips doesn't look very good for the large bodies of water in Morrowind. 
+
+Also you only need to enable all the water settings in-game because I am lazy and did not hook up the ``#if``s at all
