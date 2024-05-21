@@ -26,12 +26,13 @@ const float SPECULAR_INTENSITY = 0.5;
 const vec3 UNDERWATER_TINT = vec3(0.9);
 
 const float FADE_POW = 0.8;
+const float MIP_BIAS = 0; // global mip bias, affects water surface and WATER_FOG, WATER_FOG has its own mip bias that is applied after
 
 const float SHORE_SIZE = 25.0; // size of depth based shore effect
 
 const float SUN_SPEC_FADING_THRESHOLD = 0.35; // visibility at which sun specularity starts to fade
 
-#define WATER_FOG 1
+#define WATER_FOG 0
 #define REFLECTION 1
 
 #if WATER_FOG
@@ -99,6 +100,7 @@ void main(void)
 
     float mipmapLevel = 0.0;
     mipmapLevel = mip_map_level(worldPos.xy);
+    mipmapLevel += MIP_BIAS;
 
     #define waterTimer osg_SimulationTime
 
@@ -145,10 +147,10 @@ void main(void)
     vec4 layer1 = (tex1 + tex3) / 2.0;
 
     vec4 tex4 = texture2D(normalMap, uvPanner(UV, PAN_SPEED_X, PAN_SPEED_Y, waterTimer)) + vec4(rippleAdd, 1.0);
-    vec4 tex5 = textureLod(normalMap, uvDistort(uvPanner(UV + 0.65, 0.0, -0.00625, waterTimer), tex4.rgb, DISTORTION_SCALE + rainIntensity / 25), mipmapLevel + 0) + vec4(rippleAdd, 1.0);
+    vec4 tex5 = textureLod(normalMap, uvDistort(uvPanner(UV + 0.65, 0.0, -0.00625, waterTimer), tex4.rgb, DISTORTION_SCALE + rainIntensity / 25), mipmapLevel + 1) + vec4(rippleAdd, 1.0);
 
     vec4 tex6 = texture2D(normalMap, uvPanner(UV, PAN_SPEED_X, PAN_SPEED_Y * -1.0, waterTimer)) + vec4(rippleAdd, 1.0);
-    vec4 tex7 = textureLod(normalMap, uvDistort(uvPanner(UV + 0.2, 0.0, 0.00625, waterTimer), tex6.rgb, DISTORTION_SCALE + rainIntensity / 25), mipmapLevel + 0) + vec4(rippleAdd, 1.0);
+    vec4 tex7 = textureLod(normalMap, uvDistort(uvPanner(UV + 0.2, 0.0, 0.00625, waterTimer), tex6.rgb, DISTORTION_SCALE + rainIntensity / 25), mipmapLevel + 1) + vec4(rippleAdd, 1.0);
 
     vec4 layer2 = (tex5 + tex7) / 2.0;
 
