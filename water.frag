@@ -32,11 +32,11 @@ const float SHORE_SIZE = 25.0; // size of depth based shore effect
 
 const float SUN_SPEC_FADING_THRESHOLD = 0.35; // visibility at which sun specularity starts to fade
 
-#define WATER_FOG 0
+#define WATER_FOG 1
 #define REFLECTION 1
 
 #if WATER_FOG
-const float FADE_DIST = -1; // mip bias for water fade
+const float FADE_DIST = -3; // mip bias for water fade
 #endif
 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
